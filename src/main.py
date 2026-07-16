@@ -78,14 +78,27 @@ def main() -> None:
     logger.info("Démarrage de la capture audio…")
     capture.start()
 
-    # Raccourci global
-    hotkey = config["ui"].get("hotkey", "ctrl+shift+t")
-    keyboard.add_hotkey(hotkey, overlay.toggle)
-    logger.info("Raccourci global : %s", hotkey)
-    logger.info("live-transl-ai-tor prêt — appuie sur %s pour ouvrir l'overlay", hotkey)
-
-    # Lancer l'UI
+    # Afficher l'overlay immédiatement
     overlay.show()
+
+    # Enregistrer le raccourci global APRÈS le démarrage de l'event loop
+    # (keyboard.add_hotkey peut bloquer si exécuté avant app.exec sur Windows)
+    hotkey = config["ui"].get("hotkey", "ctrl+shift+t")
+
+    def _register_hotkey() -> None:
+        try:
+            keyboard.add_hotkey(hotkey, overlay.toggle)
+            logger.info("Raccourci global actif : %s", hotkey)
+        except Exception as e:
+            logger.warning(
+                "Raccourci global non disponible (droits admin requis?) : %s — "
+                "utilise le bouton ✕ pour fermer l'overlay.", e
+            )
+
+    from PyQt6.QtCore import QTimer
+    QTimer.singleShot(500, _register_hotkey)
+
+    logger.info("live-transl-ai-tor prêt")
     exit_code = app.exec()
 
     # Arrêt propre

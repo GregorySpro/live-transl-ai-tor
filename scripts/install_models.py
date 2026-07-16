@@ -13,7 +13,7 @@ import argostranslate.translate
 
 
 def install_pair(from_code: str, to_code: str) -> None:
-    print(f"  {from_code} → {to_code}… ", end="", flush=True)
+    print(f"  {from_code} -> {to_code}... ", end="", flush=True)
     installed = {
         (p.from_code, p.to_code)
         for p in argostranslate.package.get_installed_packages()

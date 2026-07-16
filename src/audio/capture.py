@@ -42,13 +42,17 @@ def list_devices() -> dict:
 
 def _find_default_loopback(pa: pyaudio.PyAudio) -> Optional[dict]:
     try:
-        wasapi = pa.get_host_api_info_by_type(pyaudio.paWASAPI)
-        default_out_idx = wasapi["defaultOutputDevice"]
-        speakers = pa.get_device_info_by_index(default_out_idx)
+        # Méthode recommandée par pyaudiowpatch
+        for dev in pa.get_loopback_device_info_generator():
+            return dev   # premier device loopback trouvé
+    except AttributeError:
+        pass
+    # Fallback : parcours manuel
+    try:
         for i in range(pa.get_device_count()):
             dev = pa.get_device_info_by_index(i)
-            if dev.get("isLoopbackDevice") and speakers["name"] in dev["name"]:
-                return {"index": i, **dev}
+            if dev.get("isLoopbackDevice"):
+                return dev
     except Exception as e:
         logger.warning("Impossible de trouver le loopback WASAPI : %s", e)
     return None
@@ -94,10 +98,13 @@ class AudioCapture:
             else:
                 native_rate = int(pa.get_device_info_by_index(dev_idx).get("defaultSampleRate", SAMPLE_RATE))
 
-            logger.info("Loopback : device %d @ %d Hz", dev_idx, native_rate)
+            # Utiliser le nombre de canaux natif du device (souvent 2 pour le loopback)
+            dev_info = pa.get_device_info_by_index(dev_idx)
+            n_channels = int(dev_info.get("maxInputChannels", 2)) or 2
+            logger.info("Loopback : device %d @ %d Hz, %d ch", dev_idx, native_rate, n_channels)
             stream = pa.open(
                 format=pyaudio.paFloat32,
-                channels=CHANNELS,
+                channels=n_channels,
                 rate=native_rate,
                 input=True,
                 input_device_index=dev_idx,
@@ -106,6 +113,9 @@ class AudioCapture:
             while self._running:
                 raw = stream.read(CHUNK_FRAMES, exception_on_overflow=False)
                 audio = np.frombuffer(raw, dtype=np.float32)
+                # Stereo → mono
+                if n_channels > 1:
+                    audio = audio.reshape(-1, n_channels).mean(axis=1)
                 audio = _resample_if_needed(audio, native_rate, SAMPLE_RATE)
                 self._queue.put(AudioChunk(data=audio, source="system"))
             stream.stop_stream()
