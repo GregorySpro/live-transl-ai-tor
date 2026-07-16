@@ -23,7 +23,11 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 # Silencer les libs trop verboses
-for noisy in ("httpx", "httpcore", "urllib3", "filelock", "huggingface_hub"):
+for noisy in (
+    "httpx", "httpcore", "urllib3", "filelock", "huggingface_hub",
+    "numba", "numba.core", "numba.core.byteflow", "numba.core.interpreter",
+    "numba.core.ssa", "numba.typed",
+):
     logging.getLogger(noisy).setLevel(logging.WARNING)
 
 logger = logging.getLogger("main")
