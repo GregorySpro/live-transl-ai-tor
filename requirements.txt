@@ -1,0 +1,28 @@
+# Transcription (STT)
+faster-whisper>=1.0.3
+
+# Traduction locale
+argos-translate>=1.9.6
+
+# Capture audio Windows (WASAPI loopback)
+pyaudiowpatch>=0.2.12.6
+
+# Capture microphone
+sounddevice>=0.4.7
+
+# Traitement audio
+numpy>=1.26.0
+librosa>=0.10.2
+
+# Voice Activity Detection
+torch>=2.2.0
+torchaudio>=2.2.0
+
+# Interface graphique
+PyQt6>=6.7.0
+
+# Raccourci clavier global
+keyboard>=0.13.5
+
+# Détection RAM
+psutil>=5.9.8
