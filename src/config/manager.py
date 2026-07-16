@@ -13,8 +13,20 @@ def load() -> dict:
             saved = json.load(f)
         config = copy.deepcopy(DEFAULT_CONFIG)
         _deep_update(config, saved)
+        _validate(config)
         return config
     return copy.deepcopy(DEFAULT_CONFIG)
+
+
+def _validate(config: dict) -> None:
+    """Corrige les états incohérents sans crasher."""
+    t = config.get("translation", {})
+    src = t.get("source_lang", "en")
+    tgt = t.get("target_lang", "fr")
+    # source == target → reset aux defaults
+    if src == tgt and src != "auto":
+        t["source_lang"] = DEFAULT_CONFIG["translation"]["source_lang"]
+        t["target_lang"] = DEFAULT_CONFIG["translation"]["target_lang"]
 
 
 def save(config: dict) -> None:

@@ -51,6 +51,24 @@ class WhisperEngine:
     def stop(self) -> None:
         self._running = False
 
+    # Phrases générées par Whisper quand il n'y a pas de vraie parole
+    _HALLUCINATIONS = {
+        "thank you", "thank you.", "thank you for watching.",
+        "thanks for watching.", "please subscribe.", "subtitles by",
+        ".", ",", "...", "♪", "♪♪", "[music]", "[applause]",
+        "you", "i", "the", "a",
+    }
+
+    def _is_hallucination(self, text: str) -> bool:
+        cleaned = text.strip().lower()
+        if len(cleaned) < 3:
+            return True
+        if cleaned in self._HALLUCINATIONS:
+            return True
+        if cleaned.startswith("♪") or cleaned.startswith("["):
+            return True
+        return False
+
     def _run(self) -> None:
         src_lang = self._config["whisper"].get("language_source") or None
         if src_lang == "auto":
@@ -81,9 +99,9 @@ class WhisperEngine:
                 text = " ".join(s.text.strip() for s in segments_gen).strip()
                 elapsed = time.time() - t0
 
-                if not text:
-                    logger.info("📝 Whisper : segment vide ignoré (%.1fs)", elapsed)
-                    self._status("📝 Segment vide ignoré")
+                if not text or self._is_hallucination(text):
+                    logger.info("📝 Whisper : segment ignoré '%s' (%.1fs)", text[:40], elapsed)
+                    self._status("⏳ En attente de parole…")
                     continue
 
                 logger.info("📝 Whisper [%s] → \"%s\" (%.1fs, lang=%s)",

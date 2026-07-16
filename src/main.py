@@ -39,6 +39,9 @@ def main() -> None:
     profile = detector.detect()
     profile = detector.apply_config_overrides(profile, config)
     logger.info("Profil matériel : %s", profile.description)
+    logger.info("Config traduction : %s → %s",
+                config["translation"].get("source_lang"),
+                config["translation"].get("target_lang"))
 
     config["hardware"]["detected_profile"] = profile.description
     cfg_module.save(config)
@@ -54,12 +57,12 @@ def main() -> None:
     app.setQuitOnLastWindowClosed(False)
     overlay = Overlay(config)
 
-    # Callback de statut thread-safe : met à jour le label "en cours" de l'overlay
     def status(msg: str) -> None:
-        overlay.set_live_text(msg, "system")
+        overlay.set_live_text(msg)
 
-    # Pipeline avec callbacks de statut
-    capture = AudioCapture(raw_queue, config, status_cb=status)
+    # Pipeline avec callbacks de statut et de niveau audio
+    capture = AudioCapture(raw_queue, config, status_cb=status,
+                           level_cb=overlay.set_audio_level)
     vad     = VADProcessor(raw_queue, speech_queue, config, status_cb=status)
     whisper = WhisperEngine(speech_queue, transcript_queue, profile, config, status_cb=status)
     argos   = ArgosEngine(transcript_queue, result_queue, config)

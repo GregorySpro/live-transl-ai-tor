@@ -61,12 +61,14 @@ def _find_default_loopback(pa: pyaudio.PyAudio) -> Optional[dict]:
 
 class AudioCapture:
     def __init__(self, out_queue: queue.Queue, config: dict,
-                 status_cb: Optional[Callable[[str], None]] = None):
+                 status_cb: Optional[Callable[[str], None]] = None,
+                 level_cb: Optional[Callable[[float, str], None]] = None):
         self._queue = out_queue
         self._cfg = config["audio"]
         self._running = False
         self._threads: list[threading.Thread] = []
         self._status = status_cb or (lambda msg: None)
+        self._level_cb = level_cb or (lambda level, src: None)
 
     def start(self) -> None:
         self._running = True
@@ -134,6 +136,7 @@ class AudioCapture:
                     avg = level_acc / max(chunk_count, 1)
                     bar = "█" * min(int(avg * 40), 20)
                     logger.info("🔊 Loopback niveau moyen : %.4f  %s", avg, bar)
+                    self._level_cb(avg, "system")
                     level_acc = 0.0
                     chunk_count = 0
                     last_log = now
@@ -174,6 +177,7 @@ class AudioCapture:
                     avg = level_acc / max(chunk_count, 1)
                     bar = "█" * min(int(avg * 40), 20)
                     logger.info("🎤 Micro niveau moyen : %.4f  %s", avg, bar)
+                    self._level_cb(avg, "mic")
                     level_acc = 0
                     chunk_count = 0
                     last_log[0] = now

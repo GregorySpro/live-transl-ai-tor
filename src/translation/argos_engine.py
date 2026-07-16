@@ -18,7 +18,8 @@ class TranslationResult:
     translated: str
     source_lang: str
     target_lang: str
-    source: str          # "system" | "mic"
+    source: str                  # "system" | "mic"
+    whisper_confidence: float = 0.0
 
 
 class ArgosEngine:
@@ -83,6 +84,7 @@ class ArgosEngine:
                 source_lang=src_lang,
                 target_lang=target,
                 source=result.source,
+                whisper_confidence=result.confidence,
             ))
             logger.info("📤 Résultat envoyé à l'overlay")
 
