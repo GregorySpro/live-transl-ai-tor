@@ -11,7 +11,8 @@ pyaudiowpatch>=0.2.12.6
 sounddevice>=0.4.7
 
 # Traitement audio
-numpy>=1.26.0
+numpy<2.0
+numba>=0.60.0       # librosa dependency, doit être >=0.60 pour Python 3.12
 librosa>=0.10.2
 
 # Voice Activity Detection
