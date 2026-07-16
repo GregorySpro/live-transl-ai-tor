@@ -21,6 +21,7 @@ SPEAKER_COLORS = {"system": "#7dd3fc", "mic": "#86efac"}  # bleu ciel / vert cla
 
 class Overlay(QWidget):
     _new_result = pyqtSignal(object)   # TranslationResult → thread-safe UI update
+    _live_signal = pyqtSignal(str)     # set_live_text → thread-safe
 
     def __init__(self, config: dict):
         super().__init__()
@@ -32,6 +33,7 @@ class Overlay(QWidget):
         self._setup_ui()
 
         self._new_result.connect(self._append_result)
+        self._live_signal.connect(self._live_label.setText)
 
     # ------------------------------------------------------------------ public API
 
@@ -194,8 +196,9 @@ class Overlay(QWidget):
         self._live_label.setText("En attente de parole…")
 
     def set_live_text(self, text: str, source: str) -> None:
+        """Thread-safe : peut être appelé depuis n'importe quel thread."""
         icon = SPEAKER_ICONS.get(source, "●")
-        self._live_label.setText(f"{icon} {text}")
+        self._live_signal.emit(f"{icon} {text}")
 
     def _open_settings(self) -> None:
         from .settings_window import SettingsWindow

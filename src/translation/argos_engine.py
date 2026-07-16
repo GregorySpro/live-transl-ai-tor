@@ -73,7 +73,9 @@ class ArgosEngine:
                 continue
 
             src_lang = result.language if result.language else fallback_src
+            logger.info("🌐 Traduction [%s] %s→%s : \"%s\"", result.source, src_lang, target, result.text[:80])
             translated = self.translate(result.text, src_lang, target)
+            logger.info("✅ Traduction terminée : \"%s\"", translated[:80])
 
             self._out.put(TranslationResult(
                 original=result.text,
@@ -82,6 +84,7 @@ class ArgosEngine:
                 target_lang=target,
                 source=result.source,
             ))
+            logger.info("📤 Résultat envoyé à l'overlay")
 
     def _ensure_package(self, from_lang: str, to_lang: str) -> bool:
         key = (from_lang, to_lang)

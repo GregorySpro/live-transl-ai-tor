@@ -1,13 +1,13 @@
 """
 Transcription avec faster-whisper.
-Consomme des SpeechSegment et pousse des TranscriptResult.
 """
 import logging
 import queue
 import threading
+import time
 from dataclasses import dataclass
+from typing import Callable, Optional
 
-import numpy as np
 from faster_whisper import WhisperModel
 
 from ..audio.vad import SpeechSegment
@@ -20,18 +20,14 @@ logger = logging.getLogger(__name__)
 class TranscriptResult:
     text: str
     language: str
-    source: str   # "system" | "mic"
+    source: str
     confidence: float
 
 
 class WhisperEngine:
-    def __init__(
-        self,
-        in_queue: queue.Queue,
-        out_queue: queue.Queue,
-        profile: HardwareProfile,
-        config: dict,
-    ):
+    def __init__(self, in_queue: queue.Queue, out_queue: queue.Queue,
+                 profile: HardwareProfile, config: dict,
+                 status_cb: Optional[Callable[[str], None]] = None):
         self._in = in_queue
         self._out = out_queue
         self._profile = profile
@@ -39,16 +35,15 @@ class WhisperEngine:
         self._model: WhisperModel | None = None
         self._running = False
         self._thread: threading.Thread | None = None
+        self._status = status_cb or (lambda msg: None)
 
     def start(self) -> None:
         model_size = self._profile.whisper_model
         device = self._profile.device
         compute = self._profile.compute_type
-
         logger.info("Chargement Whisper %s sur %s [%s]…", model_size, device, compute)
         self._model = WhisperModel(model_size, device=device, compute_type=compute)
-        logger.info("Whisper prêt")
-
+        logger.info("✅ Whisper prêt (%s/%s/%s)", model_size, device, compute)
         self._running = True
         self._thread = threading.Thread(target=self._run, daemon=True, name="whisper")
         self._thread.start()
@@ -59,7 +54,7 @@ class WhisperEngine:
     def _run(self) -> None:
         src_lang = self._config["whisper"].get("language_source") or None
         if src_lang == "auto":
-            src_lang = None  # faster-whisper auto-détecte si None
+            src_lang = None
 
         while self._running:
             try:
@@ -67,18 +62,42 @@ class WhisperEngine:
             except queue.Empty:
                 continue
 
+            icons = {"system": "🔊", "mic": "🎤"}
+            icon = icons.get(segment.source, "●")
+            dur = len(segment.audio) / 16000
+            logger.info("📝 Whisper transcrit %s %.1fs…", segment.source, dur)
+            self._status(f"{icon} Transcription en cours ({dur:.1f}s)…")
+            t0 = time.time()
+
             try:
-                segments, info = self._model.transcribe(
+                segments_gen, info = self._model.transcribe(
                     segment.audio,
                     language=src_lang,
                     beam_size=5,
-                    vad_filter=False,  # déjà filtré par notre VAD
+                    vad_filter=False,
+                    no_speech_threshold=0.85,   # plus permissif (défaut=0.6)
+                    log_prob_threshold=-2.0,     # plus permissif (défaut=-1.0)
                 )
-                text = " ".join(s.text.strip() for s in segments).strip()
+                text = " ".join(s.text.strip() for s in segments_gen).strip()
+                elapsed = time.time() - t0
+
                 if not text:
+                    logger.info("📝 Whisper : segment vide ignoré (%.1fs)", elapsed)
+                    self._status("📝 Segment vide ignoré")
                     continue
-                # Confiance approximative via avg_logprob du dernier segment
-                confidence = getattr(info, "all_language_probs", {}).get(info.language, 0.0)
+
+                logger.info("📝 Whisper [%s] → \"%s\" (%.1fs, lang=%s)",
+                            segment.source, text[:80], elapsed, info.language)
+                self._status(f"{icon} Transcrit ({elapsed:.1f}s) → traduction…")
+
+                # all_language_probs peut être une liste [(lang, prob)] ou un dict
+                probs = getattr(info, "all_language_probs", None)
+                if isinstance(probs, dict):
+                    confidence = probs.get(info.language, 0.0)
+                elif isinstance(probs, list) and probs:
+                    confidence = next((p for l, p in probs if l == info.language), 0.0)
+                else:
+                    confidence = 0.0
                 self._out.put(TranscriptResult(
                     text=text,
                     language=info.language,
@@ -86,4 +105,5 @@ class WhisperEngine:
                     confidence=float(confidence),
                 ))
             except Exception as e:
-                logger.exception("Erreur Whisper : %s", e)
+                logger.exception("❌ Erreur Whisper : %s", e)
+                self._status(f"❌ Erreur Whisper : {e}")
