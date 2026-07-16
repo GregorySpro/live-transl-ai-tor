@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16000
 CHANNELS = 1
 CHUNK_FRAMES = 1024
+PRE_GAIN = 8.0  # Amplifie le signal loopback (souvent très atténué par Windows)
 
 
 @dataclass
@@ -117,6 +118,8 @@ class AudioCapture:
                 if n_channels > 1:
                     audio = audio.reshape(-1, n_channels).mean(axis=1)
                 audio = _resample_if_needed(audio, native_rate, SAMPLE_RATE)
+                # Amplifie + clamp pour compenser le volume faible du loopback
+                audio = np.clip(audio * PRE_GAIN, -1.0, 1.0)
                 self._queue.put(AudioChunk(data=audio, source="system"))
             stream.stop_stream()
             stream.close()

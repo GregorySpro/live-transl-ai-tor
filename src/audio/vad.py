@@ -89,7 +89,12 @@ class VADProcessor:
 
     def _is_speech(self, audio: np.ndarray) -> bool:
         try:
-            tensor = torch.from_numpy(audio)
+            # Normalise pour que Silero reçoive un signal bien calibré
+            peak = np.abs(audio).max()
+            if peak < 1e-6:
+                return False
+            normalized = audio / peak
+            tensor = torch.from_numpy(normalized)
             with torch.no_grad():
                 confidence = self._model(tensor, SAMPLE_RATE).item()
             return confidence >= self._threshold
