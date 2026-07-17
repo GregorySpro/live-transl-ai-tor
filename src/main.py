@@ -63,7 +63,11 @@ def main() -> None:
     # Pipeline avec callbacks de statut et de niveau audio
     capture = AudioCapture(raw_queue, config, status_cb=status,
                            level_cb=overlay.set_audio_level)
-    vad     = VADProcessor(raw_queue, speech_queue, config, status_cb=status)
+    def on_speaking(is_speaking: bool, source: str) -> None:
+        overlay.set_speaking(is_speaking)
+
+    vad     = VADProcessor(raw_queue, speech_queue, config, status_cb=status,
+                           speaking_cb=on_speaking)
     whisper = WhisperEngine(speech_queue, transcript_queue, profile, config, status_cb=status)
     argos   = ArgosEngine(transcript_queue, result_queue, config)
 

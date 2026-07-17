@@ -1,11 +1,11 @@
 """
 Traduction locale avec argos-translate.
-Consomme des TranscriptResult et pousse des TranslationResult.
+Consomme des TranscriptResult (previews et finaux) et pousse des TranslationResult.
 """
 import logging
 import queue
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..transcription.whisper_engine import TranscriptResult
 
@@ -18,8 +18,9 @@ class TranslationResult:
     translated: str
     source_lang: str
     target_lang: str
-    source: str                  # "system" | "mic"
+    source: str                   # "system" | "mic"
     whisper_confidence: float = 0.0
+    is_preview: bool = False
 
 
 class ArgosEngine:
@@ -29,23 +30,21 @@ class ArgosEngine:
         out_queue: queue.Queue,
         config: dict,
     ):
-        self._in = in_queue
-        self._out = out_queue
-        self._config = config
+        self._in      = in_queue
+        self._out     = out_queue
+        self._config  = config
         self._running = False
         self._thread: threading.Thread | None = None
-        # Cache des packages installés : (src, tgt) → bool
         self._package_cache: dict[tuple[str, str], bool] = {}
 
     def start(self) -> None:
         import argostranslate.package
         import argostranslate.translate
-        self._argos_package = argostranslate.package
+        self._argos_package   = argostranslate.package
         self._argos_translate = argostranslate.translate
         logger.info("Argos Translate prêt")
-
         self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True, name="translation")
+        self._thread  = threading.Thread(target=self._run, daemon=True, name="translation")
         self._thread.start()
 
     def stop(self) -> None:
@@ -63,8 +62,7 @@ class ArgosEngine:
             return text
 
     def _run(self) -> None:
-        target = self._config["translation"]["target_lang"]
-        # source_lang de la config est utilisé comme fallback si Whisper n'a pas détecté
+        target       = self._config["translation"]["target_lang"]
         fallback_src = self._config["translation"].get("source_lang", "en")
 
         while self._running:
@@ -74,9 +72,16 @@ class ArgosEngine:
                 continue
 
             src_lang = result.language if result.language else fallback_src
-            logger.info("🌐 Traduction [%s] %s→%s : \"%s\"", result.source, src_lang, target, result.text[:80])
+            label    = "preview" if result.is_preview else "FINAL"
+            logger.info(
+                "🌐 Traduction [%s|%s] %s→%s : \"%s\"",
+                result.source, label, src_lang, target, result.text[:60],
+            )
+
             translated = self.translate(result.text, src_lang, target)
-            logger.info("✅ Traduction terminée : \"%s\"", translated[:80])
+
+            if not result.is_preview:
+                logger.info("✅ Traduction terminée : \"%s\"", translated[:60])
 
             self._out.put(TranslationResult(
                 original=result.text,
@@ -85,21 +90,20 @@ class ArgosEngine:
                 target_lang=target,
                 source=result.source,
                 whisper_confidence=result.confidence,
+                is_preview=result.is_preview,
             ))
-            logger.info("📤 Résultat envoyé à l'overlay")
 
     def _ensure_package(self, from_lang: str, to_lang: str) -> bool:
         key = (from_lang, to_lang)
         if key in self._package_cache:
             return self._package_cache[key]
 
-        installed = self._argos_translate.get_installed_languages()
+        installed       = self._argos_translate.get_installed_languages()
         installed_codes = {lang.code for lang in installed}
 
         if from_lang in installed_codes and to_lang in installed_codes:
             src_lang_obj = next(l for l in installed if l.code == from_lang)
-            available = {t.code for t in src_lang_obj.translations_to}
-            if to_lang in available:
+            if to_lang in {t.code for t in src_lang_obj.translations_to}:
                 self._package_cache[key] = True
                 return True
 

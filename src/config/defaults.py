@@ -25,8 +25,8 @@ DEFAULT_CONFIG = {
         "max_transcript_lines": 100,
         "position_x": None,
         "position_y": None,
-        "width": 520,
-        "height": 420,
+        "width": 560,
+        "height": 380,
         "theme": "dark",
     },
     "hardware": {
