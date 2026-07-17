@@ -71,27 +71,30 @@ class ArgosEngine:
             except queue.Empty:
                 continue
 
-            src_lang = result.language if result.language else fallback_src
-            label    = "preview" if result.is_preview else "FINAL"
-            logger.info(
-                "🌐 Traduction [%s|%s] %s→%s : \"%s\"",
-                result.source, label, src_lang, target, result.text[:60],
-            )
+            try:
+                src_lang = result.language if result.language else fallback_src
+                label    = "preview" if result.is_preview else "FINAL"
+                logger.info(
+                    "🌐 Traduction [%s|%s] %s→%s : \"%s\"",
+                    result.source, label, src_lang, target, result.text[:60],
+                )
 
-            translated = self.translate(result.text, src_lang, target)
+                translated = self.translate(result.text, src_lang, target)
 
-            if not result.is_preview:
-                logger.info("✅ Traduction terminée : \"%s\"", translated[:60])
+                if not result.is_preview:
+                    logger.info("✅ Traduction terminée : \"%s\"", translated[:60])
 
-            self._out.put(TranslationResult(
-                original=result.text,
-                translated=translated,
-                source_lang=src_lang,
-                target_lang=target,
-                source=result.source,
-                whisper_confidence=result.confidence,
-                is_preview=result.is_preview,
-            ))
+                self._out.put(TranslationResult(
+                    original=result.text,
+                    translated=translated,
+                    source_lang=src_lang,
+                    target_lang=target,
+                    source=result.source,
+                    whisper_confidence=result.confidence,
+                    is_preview=result.is_preview,
+                ))
+            except Exception as e:
+                logger.exception("❌ Erreur traduction (segment ignoré) : %s", e)
 
     def _ensure_package(self, from_lang: str, to_lang: str) -> bool:
         key = (from_lang, to_lang)
@@ -103,7 +106,12 @@ class ArgosEngine:
 
         if from_lang in installed_codes and to_lang in installed_codes:
             src_lang_obj = next(l for l in installed if l.code == from_lang)
-            if to_lang in {t.code for t in src_lang_obj.translations_to}:
+            # translations_to retourne des CachedTranslation (to_lang.code), pas des Language
+            try:
+                avail = {t.to_lang.code for t in src_lang_obj.translations_to}
+            except AttributeError:
+                avail = {t.code for t in src_lang_obj.translations_to}
+            if to_lang in avail:
                 self._package_cache[key] = True
                 return True
 

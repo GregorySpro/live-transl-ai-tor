@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16000
 CHANNELS = 1
 CHUNK_FRAMES = 1024
-PRE_GAIN_LOOPBACK = 8.0
+PRE_GAIN_LOOPBACK = 40.0
 PRE_GAIN_MIC = 20.0
 # Log du niveau audio toutes les N secondes pour diagnostic
 _LEVEL_LOG_INTERVAL = 3.0
