@@ -14,8 +14,9 @@ DEFAULT_CONFIG = {
         "mic_device_index": None,
         "sample_rate": 16000,
         "chunk_ms": 500,
-        "silence_duration_ms": 800,
-        "vad_threshold": 0.5,
+        "silence_duration_ms": 600,
+        "vad_threshold": 0.6,
+        "mic_only": True,  # True = micro uniquement, False = micro + loopback système
     },
     "ui": {
         "hotkey": "ctrl+shift+t",
