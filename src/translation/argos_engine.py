@@ -62,14 +62,17 @@ class ArgosEngine:
             return text
 
     def _run(self) -> None:
-        target       = self._config["translation"]["target_lang"]
-        fallback_src = self._config["translation"].get("source_lang", "en")
-
         while self._running:
             try:
                 result: TranscriptResult = self._in.get(timeout=0.5)
             except queue.Empty:
                 continue
+
+            # Re-lire la config à chaque segment : supporte les changements à chaud
+            target       = self._config["translation"]["target_lang"]
+            fallback_src = self._config["translation"].get("source_lang", "auto")
+            if fallback_src == "auto":
+                fallback_src = "en"
 
             try:
                 src_lang = result.language if result.language else fallback_src
@@ -101,19 +104,14 @@ class ArgosEngine:
         if key in self._package_cache:
             return self._package_cache[key]
 
-        installed       = self._argos_translate.get_installed_languages()
-        installed_codes = {lang.code for lang in installed}
-
-        if from_lang in installed_codes and to_lang in installed_codes:
-            src_lang_obj = next(l for l in installed if l.code == from_lang)
-            # translations_to retourne des CachedTranslation (to_lang.code), pas des Language
-            try:
-                avail = {t.to_lang.code for t in src_lang_obj.translations_to}
-            except AttributeError:
-                avail = {t.code for t in src_lang_obj.translations_to}
-            if to_lang in avail:
+        # Vérifie les packages installés directement (plus fiable que get_installed_languages)
+        try:
+            installed_pkgs = self._argos_package.get_installed_packages()
+            if any(p.from_code == from_lang and p.to_code == to_lang for p in installed_pkgs):
                 self._package_cache[key] = True
                 return True
+        except Exception as e:
+            logger.debug("Erreur vérification packages installés : %s", e)
 
         logger.info("Installation du package %s → %s…", from_lang, to_lang)
         try:
@@ -129,6 +127,7 @@ class ArgosEngine:
                 return False
             self._argos_package.install_from_path(pkg.download())
             self._package_cache[key] = True
+            logger.info("✅ Package %s → %s installé", from_lang, to_lang)
             return True
         except Exception as e:
             logger.error("Impossible d'installer le package de traduction : %s", e)
