@@ -15,8 +15,8 @@ _GPU_TIERS = [
 
 # Seuils RAM (MB) + cœurs CPU pour la sélection automatique
 _CPU_TIERS = [
-    (16000, 8, "small", "int8"),
-    (8000,  4, "base",  "int8"),
+    (10000, 6, "small", "int8"),
+    (6000,  4, "base",  "int8"),
     (0,     0, "tiny",  "int8"),
 ]
 
