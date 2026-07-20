@@ -181,26 +181,37 @@ class SettingsWindow(QDialog):
     def _save(self) -> None:
         from .. import config as cfg_module
 
+        # --- Translation ---
         self._cfg.setdefault("translation", {})
-        self._cfg["translation"]["source_lang"] = self._src_lang.currentData()
-        self._cfg["translation"]["target_lang"] = self._tgt_lang.currentData()
-
+        new_src = self._src_lang.currentData()
+        new_tgt = self._tgt_lang.currentData()
+        # Empêche source == cible (sauf auto)
+        if new_src != "auto" and new_src == new_tgt:
+            new_tgt = "fr" if new_src != "fr" else "en"
+        self._cfg["translation"]["source_lang"] = new_src
+        self._cfg["translation"]["target_lang"]  = new_tgt
+        # Synchronise aussi le paramètre Whisper de détection langue
         self._cfg.setdefault("whisper", {})
-        self._cfg["whisper"]["model"] = self._model_combo.currentText()
-        self._cfg["whisper"]["device"] = self._device_combo.currentText()
+        self._cfg["whisper"]["language_source"] = new_src  # "auto" ou code langue
+
+        # --- Whisper / matériel ---
+        self._cfg["whisper"]["model"]        = self._model_combo.currentText()
+        self._cfg["whisper"]["device"]       = self._device_combo.currentText()
         self._cfg["whisper"]["compute_type"] = self._compute_combo.currentText()
 
         self._cfg.setdefault("hardware", {})
         self._cfg["hardware"]["auto_optimize"] = self._auto_opt.isChecked()
 
+        # --- Audio ---
         self._cfg.setdefault("audio", {})
-        self._cfg["audio"]["vad_threshold"] = self._vad_threshold.value()
+        self._cfg["audio"]["vad_threshold"]      = self._vad_threshold.value()
         self._cfg["audio"]["silence_duration_ms"] = self._silence_ms.value()
 
+        # --- UI ---
         self._cfg.setdefault("ui", {})
-        self._cfg["ui"]["hotkey"] = self._hotkey.text()
-        self._cfg["ui"]["font_size"] = self._font_size.value()
-        self._cfg["ui"]["opacity"] = self._opacity.value()
+        self._cfg["ui"]["hotkey"]        = self._hotkey.text()
+        self._cfg["ui"]["font_size"]     = self._font_size.value()
+        self._cfg["ui"]["opacity"]       = self._opacity.value()
         self._cfg["ui"]["always_on_top"] = self._always_on_top.isChecked()
 
         cfg_module.save(self._cfg)
