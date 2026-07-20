@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16000
 CHANNELS = 1
 CHUNK_FRAMES = 1024
-PRE_GAIN_LOOPBACK = 40.0
-PRE_GAIN_MIC = 20.0
+PRE_GAIN_LOOPBACK = 8.0    # gain modéré — évite la saturation sur audio fort
+PRE_GAIN_MIC      = 8.0    # ajusté pour micro faible (niveau brut ~0.001 → 0.008 après gain)
 # Log du niveau audio toutes les N secondes pour diagnostic
 _LEVEL_LOG_INTERVAL = 3.0
 
@@ -44,16 +44,38 @@ def list_devices() -> dict:
 
 
 def _find_default_loopback(pa: pyaudio.PyAudio) -> Optional[dict]:
+    """Trouve le loopback correspondant au périphérique de sortie par défaut WASAPI."""
     try:
-        for dev in pa.get_loopback_device_info_generator():
-            return dev
-    except AttributeError:
-        pass
-    try:
-        for i in range(pa.get_device_count()):
-            dev = pa.get_device_info_by_index(i)
-            if dev.get("isLoopbackDevice"):
-                return dev
+        wasapi_info = pa.get_host_api_info_by_type(pyaudio.paWASAPI)
+        default_out = pa.get_device_info_by_index(wasapi_info["defaultOutputDevice"])
+        default_name = default_out.get("name", "")
+        logger.info("🔊 Sortie audio par défaut : %s", default_name)
+
+        # 1ère passe : loopback dont le nom contient celui de la sortie par défaut
+        for loopback in pa.get_loopback_device_info_generator():
+            lb_name = loopback.get("name", "")
+            if default_name and (default_name in lb_name or lb_name in default_name):
+                logger.info("🔊 Loopback trouvé (nom) : %s", lb_name)
+                return loopback
+
+        # 2ème passe : première correspondance partielle sur les mots significatifs
+        default_words = {w for w in default_name.split() if len(w) > 3}
+        best: Optional[dict] = None
+        best_score = 0
+        for loopback in pa.get_loopback_device_info_generator():
+            lb_name = loopback.get("name", "")
+            score = sum(1 for w in default_words if w in lb_name)
+            if score > best_score:
+                best_score, best = score, loopback
+        if best:
+            logger.info("🔊 Loopback trouvé (fuzzy, score=%d) : %s", best_score, best.get("name"))
+            return best
+
+        # Fallback : premier loopback dispo
+        for loopback in pa.get_loopback_device_info_generator():
+            logger.warning("⚠️ Aucun loopback correspondant à '%s', fallback : %s",
+                           default_name, loopback.get("name"))
+            return loopback
     except Exception as e:
         logger.warning("Loopback introuvable : %s", e)
     return None
@@ -72,12 +94,16 @@ class AudioCapture:
 
     def start(self) -> None:
         self._running = True
-        t_sys = threading.Thread(target=self._capture_loopback, daemon=True, name="capture-loopback")
-        t_mic = threading.Thread(target=self._capture_mic,      daemon=True, name="capture-mic")
-        self._threads = [t_sys, t_mic]
-        for t in self._threads:
-            t.start()
-        logger.info("Capture audio démarrée (loopback + micro)")
+        mic_only = self._cfg.get("mic_only", True)
+        self._threads = []
+        if not mic_only:
+            t_sys = threading.Thread(target=self._capture_loopback, daemon=True, name="capture-loopback")
+            self._threads.append(t_sys)
+            t_sys.start()
+        t_mic = threading.Thread(target=self._capture_mic, daemon=True, name="capture-mic")
+        self._threads.append(t_mic)
+        t_mic.start()
+        logger.info("Capture audio démarrée (mic%s)", "" if mic_only else " + loopback")
 
     def stop(self) -> None:
         self._running = False
@@ -172,12 +198,14 @@ class AudioCapture:
                 level_acc += level
                 chunk_count += 1
 
+                # Niveau en temps réel pour la barre UI (chaque chunk ≈ 64ms)
+                self._level_cb(level, "mic")
+
                 now = time.time()
                 if now - last_log[0] >= _LEVEL_LOG_INTERVAL:
                     avg = level_acc / max(chunk_count, 1)
                     bar = "█" * min(int(avg * 40), 20)
                     logger.info("🎤 Micro niveau moyen : %.4f  %s", avg, bar)
-                    self._level_cb(avg, "mic")
                     level_acc = 0
                     chunk_count = 0
                     last_log[0] = now
