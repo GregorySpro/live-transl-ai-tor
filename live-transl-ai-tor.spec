@@ -58,10 +58,9 @@ a = Analysis(
         "sklearn", "scikit-learn", "pandas", "tensorflow", "keras",
         "cv2", "skimage", "imageio",
         "sympy", "networkx",
-        # torch.distributed, torch.testing… inutiles en inférence CPU
+        # torch internals vraiment inutilisés
         "torch.distributed", "torch.testing", "torch.ao",
-        "torch.backends.cuda", "torch.backends.cudnn",
-        "torch.cuda", "caffe2",
+        "caffe2",
     ],
     noarchive=False,
     optimize=1,
