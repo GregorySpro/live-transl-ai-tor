@@ -3,8 +3,10 @@ Voice Activity Detection avec silero-vad.
 Émet des SpeechSegment finaux (silence détecté) ET des previews
 toutes les PREVIEW_INTERVAL_S secondes pendant la parole active.
 """
+import io
 import logging
 import queue
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -54,12 +56,20 @@ class VADProcessor:
         self._speaking_cb = speaking_cb or (lambda is_sp, src: None)
 
     def start(self) -> None:
-        self._model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad",
-            model="silero_vad",
-            force_reload=False,
-            trust_repo=True,
-        )
+        # torch.hub.load() écrit sur sys.stderr ("Using cache found in…").
+        # PyInstaller console=False met sys.stderr=None → AttributeError.
+        _stderr = sys.stderr
+        if sys.stderr is None:
+            sys.stderr = io.StringIO()
+        try:
+            self._model, _ = torch.hub.load(
+                repo_or_dir="snakers4/silero-vad",
+                model="silero_vad",
+                force_reload=False,
+                trust_repo=True,
+            )
+        finally:
+            sys.stderr = _stderr
         self._model.eval()
         logger.info("Silero-VAD chargé (seuil=%.2f)", self._threshold)
         self._running = True
