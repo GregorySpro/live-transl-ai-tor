@@ -11,7 +11,13 @@ datas    = []
 binaries = []
 hiddenimports = []
 
-# ctranslate2 et faster-whisper ont besoin de collect_all (DLLs natives)
+# torch et torchaudio : collect_all obligatoire — torch a trop d'imports
+# internes croisés (cuda, distributed, utils.data…) pour les exclure manuellement.
+for pkg in ("torch", "torchaudio"):
+    d, b, h = collect_all(pkg)
+    datas += d; binaries += b; hiddenimports += h
+
+# ctranslate2 / faster-whisper : DLLs natives
 for pkg in ("ctranslate2", "faster_whisper"):
     d, b, h = collect_all(pkg)
     datas += d; binaries += b; hiddenimports += h
@@ -58,8 +64,7 @@ a = Analysis(
         "sklearn", "scikit-learn", "pandas", "tensorflow", "keras",
         "cv2", "skimage", "imageio",
         "sympy", "networkx",
-        # torch internals vraiment inutilisés
-        "torch.distributed", "torch.testing", "torch.ao",
+        # Packages externes inutiles (pas des internals torch)
         "caffe2",
     ],
     noarchive=False,
