@@ -22,9 +22,10 @@ for pkg in ("ctranslate2", "faster_whisper"):
     d, b, h = collect_all(pkg)
     datas += d; binaries += b; hiddenimports += h
 
-# argostranslate : données de langues
-d, b, h = collect_all("argostranslate")
-datas += d; binaries += b; hiddenimports += h
+# argostranslate + stanza (sbd.py importe stanza qui importe networkx)
+for pkg in ("argostranslate", "stanza", "networkx"):
+    d, b, h = collect_all(pkg)
+    datas += d; binaries += b; hiddenimports += h
 
 # Métadonnées pour importlib.metadata
 for pkg in ("torch", "torchaudio", "filelock", "huggingface_hub", "faster_whisper"):
@@ -63,7 +64,7 @@ a = Analysis(
         "sphinx", "pytest", "setuptools", "pip", "tkinter", "wx",
         "sklearn", "scikit-learn", "pandas", "tensorflow", "keras",
         "cv2", "skimage", "imageio",
-        "sympy", "networkx",
+        "sympy",
         # Packages externes inutiles (pas des internals torch)
         "caffe2",
     ],
