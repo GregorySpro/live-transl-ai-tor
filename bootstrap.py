@@ -96,10 +96,22 @@ def _download_uv() -> None:
                 break
 
 
+def _uv_env() -> dict:
+    """Variables d'environnement pour uv — force LOCALAPPDATA pour éviter
+    les junctions Windows (ex. OneDrive qui redirige AppData\\Roaming)."""
+    env = os.environ.copy()
+    uv_home = APP_DIR / "uv"
+    env["UV_DATA_DIR"]  = str(uv_home / "data")
+    env["UV_CACHE_DIR"] = str(uv_home / "cache")
+    env["UV_PYTHON_INSTALL_DIR"] = str(uv_home / "python")
+    return env
+
+
 def _run_uv(*args: str) -> None:
     result = subprocess.run(
         [str(UV_EXE), *args],
         capture_output=True, text=True,
+        env=_uv_env(),
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr or result.stdout)
