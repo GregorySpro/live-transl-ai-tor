@@ -176,10 +176,12 @@ def main() -> None:
     _window = webview.create_window(
         title=APP_NAME,
         url=str(HTML_FILE),
-        width=420,
-        height=400,
+        width=560,
+        height=560,
         resizable=False,
+        frameless=True,
         js_api=api,
+        background_color="#0a0a0a",
     )
 
     def _on_loaded() -> None:
