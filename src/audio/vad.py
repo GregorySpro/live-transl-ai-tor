@@ -56,9 +56,11 @@ class VADProcessor:
         self._speaking_cb = speaking_cb or (lambda is_sp, src: None)
 
     def start(self) -> None:
-        # torch.hub.load() écrit sur sys.stderr ("Using cache found in…").
-        # PyInstaller console=False met sys.stderr=None → AttributeError.
-        _stderr = sys.stderr
+        # PyInstaller console=False → sys.stdout et sys.stderr sont None.
+        # torch.hub.load() écrit sur les deux ("Downloading…" / "Using cache…").
+        _stdout, _stderr = sys.stdout, sys.stderr
+        if sys.stdout is None:
+            sys.stdout = io.StringIO()
         if sys.stderr is None:
             sys.stderr = io.StringIO()
         try:
@@ -69,7 +71,7 @@ class VADProcessor:
                 trust_repo=True,
             )
         finally:
-            sys.stderr = _stderr
+            sys.stdout, sys.stderr = _stdout, _stderr
         self._model.eval()
         logger.info("Silero-VAD chargé (seuil=%.2f)", self._threshold)
         self._running = True
