@@ -52,5 +52,7 @@ Name: "{autodesktop}\{#AppName}";  Filename: "{app}\{#AppExeName}"; Tasks: deskt
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Nettoie l'environnement Python et le cache installés dans LocalAppData
+; Nettoie l'environnement Python installé dans LocalAppData
 Type: filesandordirs; Name: "{localappdata}\{#AppName}"
+; Nettoie le runtime Python placé à la racine du disque (contournement junctions)
+Type: filesandordirs; Name: "C:\ltai-py"

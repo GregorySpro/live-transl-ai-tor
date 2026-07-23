@@ -96,14 +96,27 @@ def _download_uv() -> None:
                 break
 
 
+def _uv_python_dir() -> Path:
+    """Retourne un chemin garanti sans point de montage pour l'install Python.
+
+    Sur les PC entreprise le profil utilisateur est souvent une junction
+    (profil réseau ou Storage Spaces) : uv ne peut pas créer de dossiers
+    sous ces chemins (os error 448). On place Python à la racine du disque
+    système pour contourner ça.
+    """
+    # Racine du disque où est LOCALAPPDATA (ex. "C:") — jamais une junction
+    drive = Path(os.environ.get("LOCALAPPDATA", "C:\\")).drive or "C:"
+    return Path(drive + "\\") / "ltai-py"
+
+
 def _uv_env() -> dict:
-    """Variables d'environnement pour uv — force LOCALAPPDATA pour éviter
-    les junctions Windows (ex. OneDrive qui redirige AppData\\Roaming)."""
+    """Variables d'environnement pour uv."""
     env = os.environ.copy()
     uv_home = APP_DIR / "uv"
-    env["UV_DATA_DIR"]  = str(uv_home / "data")
-    env["UV_CACHE_DIR"] = str(uv_home / "cache")
-    env["UV_PYTHON_INSTALL_DIR"] = str(uv_home / "python")
+    env["UV_DATA_DIR"]           = str(uv_home / "data")
+    env["UV_CACHE_DIR"]          = str(uv_home / "cache")
+    env["UV_PYTHON_INSTALL_DIR"] = str(_uv_python_dir())
+    env["UV_LINK_MODE"]          = "copy"   # évite les hardlinks sur réseaux/VMs
     return env
 
 
